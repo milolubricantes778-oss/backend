@@ -33,6 +33,13 @@ const envSchema = joi
   .unknown(true) // Allow other env vars
 
 const validateEnv = () => {
+  console.log("[ENV] Starting environment validation...")
+  console.log("[ENV] NODE_ENV:", process.env.NODE_ENV)
+  console.log("[ENV] PORT:", process.env.PORT)
+  console.log("[ENV] DATABASE_URL exists:", !!process.env.DATABASE_URL)
+  console.log("[ENV] JWT_SECRET exists:", !!process.env.JWT_SECRET)
+  console.log("[ENV] JWT_SECRET length:", process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0)
+
   const { error, value } = envSchema.validate(process.env, {
     abortEarly: false,
     stripUnknown: false,
@@ -40,9 +47,30 @@ const validateEnv = () => {
 
   if (error) {
     const errorMessages = error.details.map((detail) => detail.message)
+    console.error("[ENV] Validation failed with errors:")
+    errorMessages.forEach((msg, index) => {
+      console.error(`[ENV] Error ${index + 1}: ${msg}`)
+    })
+
+    console.error("[ENV] Available environment variables:")
+    Object.keys(process.env).forEach((key) => {
+      if (
+        key.includes("DB_") ||
+        key.includes("JWT") ||
+        key === "DATABASE_URL" ||
+        key === "NODE_ENV" ||
+        key === "PORT"
+      ) {
+        console.error(
+          `[ENV] ${key}: ${key.includes("SECRET") || key.includes("PASSWORD") ? "[HIDDEN]" : process.env[key]}`,
+        )
+      }
+    })
+
     throw new Error(`Environment validation failed:\n${errorMessages.join("\n")}`)
   }
 
+  console.log("[ENV] Environment validation successful!")
   return value
 }
 
