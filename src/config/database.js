@@ -22,20 +22,10 @@ const createDbConfig = () => {
       ssl:
         process.env.NODE_ENV === "production"
           ? {
-              rejectUnauthorized: true,
-              ca: process.env.DB_SSL_CA,
-              cert: process.env.DB_SSL_CERT,
-              key: process.env.DB_SSL_KEY,
+              rejectUnauthorized: false, // Changed to false for Railway compatibility
             }
           : false,
       multipleStatements: false,
-      acquireTimeout: 60000,
-      timeout: 60000,
-      reconnect: true,
-      pool: {
-        min: process.env.NODE_ENV === "production" ? 5 : 2,
-        max: Number.parseInt(process.env.DB_CONNECTION_LIMIT) || (process.env.NODE_ENV === "production" ? 50 : 10),
-      },
     }
   }
 
