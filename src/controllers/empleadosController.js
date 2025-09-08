@@ -6,7 +6,15 @@ const empleadosController = {
   // Obtener todos los empleados con paginación y filtros
   async getEmpleados(req, res) {
     try {
-      const { page = 1, limit = 10, search = "", activo } = req.query
+      let page = parseInt(req.query.page, 10) || 1
+      let limit = parseInt(req.query.limit, 10) || 10
+      const search = req.query.search || ""
+      const activo = req.query.activo
+
+      // Normalizar valores
+      page = page < 1 ? 1 : page
+      limit = limit < 1 ? 10 : limit
+      limit = Math.min(limit, 100) // máximo 100
       const offset = (page - 1) * limit
 
       let whereClause = "WHERE 1=1"
@@ -18,12 +26,12 @@ const empleadosController = {
         queryParams.push(searchTerm, searchTerm, searchTerm)
       }
 
-      // Filtro por estado activo
       if (activo !== undefined) {
         whereClause += " AND e.activo = ?"
         queryParams.push(activo === "true" ? 1 : 0)
       }
 
+      // Inyectar limit y offset como enteros validados
       const empleadosQuery = `
         SELECT 
           e.id,
@@ -40,10 +48,9 @@ const empleadosController = {
         LEFT JOIN sucursales s ON e.sucursal_id = s.id
         ${whereClause}
         ORDER BY e.nombre ASC, e.apellido ASC
-        LIMIT ? OFFSET ?
+        LIMIT ${limit} OFFSET ${offset}
       `
 
-      // Consulta para contar total
       const countQuery = `
         SELECT COUNT(*) as total
         FROM empleados e
@@ -51,13 +58,10 @@ const empleadosController = {
         ${whereClause}
       `
 
-      const [empleados] = await db.pool.execute(empleadosQuery, [
-        ...queryParams,
-        Number.parseInt(limit),
-        Number.parseInt(offset),
-      ])
+      const [empleados] = await db.pool.execute(empleadosQuery, queryParams)
       const [countResult] = await db.pool.execute(countQuery, queryParams)
-      const total = countResult[0].total
+
+      const total = countResult[0]?.total || 0
       const totalPages = Math.ceil(total / limit)
 
       res.json({
@@ -65,10 +69,10 @@ const empleadosController = {
         data: {
           empleados,
           pagination: {
-            currentPage: Number.parseInt(page),
+            currentPage: page,
             totalPages,
             totalItems: total,
-            itemsPerPage: Number.parseInt(limit),
+            itemsPerPage: limit,
           },
         },
       })
@@ -170,14 +174,12 @@ const empleadosController = {
       const { id } = req.params
       const { nombre, apellido, telefono, cargo, sucursal_id, activo } = req.body
 
-      // Verificar si el empleado existe
       const [existingEmpleado] = await db.pool.execute("SELECT id FROM empleados WHERE id = ?", [id])
 
       if (existingEmpleado.length === 0) {
         return responseHelper.error(res, "Empleado no encontrado", 404)
       }
 
-      // Verificar si la sucursal existe
       const [sucursalExists] = await db.pool.execute("SELECT id FROM sucursales WHERE id = ? AND activo = 1", [
         sucursal_id,
       ])
@@ -218,14 +220,12 @@ const empleadosController = {
     try {
       const { id } = req.params
 
-      // Verificar si el empleado existe
       const [existingEmpleado] = await db.pool.execute("SELECT id FROM empleados WHERE id = ? AND activo = 1", [id])
 
       if (existingEmpleado.length === 0) {
         return responseHelper.error(res, "Empleado no encontrado", 404)
       }
 
-      // Verificar si el empleado tiene servicios asociados
       const [serviciosAsociados] = await db.pool.execute(
         "SELECT COUNT(*) as count FROM servicio_empleados WHERE empleado_id = ?",
         [id],
@@ -235,7 +235,6 @@ const empleadosController = {
         return responseHelper.error(res, "No se puede eliminar el empleado porque tiene servicios asociados", 400)
       }
 
-      // Soft delete
       await db.pool.execute("UPDATE empleados SET activo = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id])
 
       responseHelper.success(res, null, "Empleado eliminado exitosamente")
