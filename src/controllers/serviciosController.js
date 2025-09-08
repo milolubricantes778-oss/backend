@@ -194,9 +194,9 @@ const serviciosController = {
       // Crear items del servicio con productos
       for (const item of items) {
         const [itemResult] = await connection.execute(
-          `INSERT INTO servicio_items (servicio_id, tipo_servicio_id, observaciones, notas)
+          `INSERT INTO servicio_items (servicio_id, tipo_servicio_id, descripcion, observaciones, notas)
            VALUES (?, ?, ?, ?)`,
-          [servicioId, item.tipo_servicio_id, item.observaciones || null, item.notas || null],
+          [servicioId, item.tipo_servicio_id, item.descripcion || "Sin descripción", item.observaciones || null, item.notas || null],
         )
 
         const servicioItemId = itemResult.insertId
@@ -287,10 +287,10 @@ const serviciosController = {
       for (const item of items) {
         const [itemResult] = await connection.execute(
           `
-          INSERT INTO servicio_items (servicio_id, tipo_servicio_id, observaciones, notas)
+          INSERT INTO servicio_items (servicio_id, tipo_servicio_id, descripcion, observaciones, notas)
           VALUES (?, ?, ?, ?)
         `,
-          [id, item.tipo_servicio_id, item.observaciones || null, item.notas || null],
+          [id, item.tipo_servicio_id, item.descripcion || "Sin descripción", item.observaciones || null, item.notas || null],
         )
 
         const servicioItemId = itemResult.insertId
