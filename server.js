@@ -25,7 +25,7 @@ const PORT = process.env.PORT || 4485
 let server // Declare the server variable here
 
 if (process.env.NODE_ENV === "production") {
-  app.set("trust proxy", true)
+  app.set("trust proxy", 1) // Solo confiar en el primer proxy (Railway)
 }
 
 app.use(
@@ -62,6 +62,13 @@ const createRateLimit = (windowMs, max, message) =>
     },
     standardHeaders: true,
     legacyHeaders: false,
+    trustProxy: process.env.NODE_ENV === "production",
+    keyGenerator: (req) => {
+      // En producción usar IP real, en desarrollo usar IP directa
+      return process.env.NODE_ENV === "production"
+        ? req.ip || req.connection.remoteAddress
+        : req.connection.remoteAddress
+    },
   })
 
 // Rate limiting general

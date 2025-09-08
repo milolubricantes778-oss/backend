@@ -6,11 +6,11 @@ const logAccess = async (userId, action, resource, ip, userAgent) => {
   try {
     const query = `
       INSERT INTO auditoria (tabla, registro_id, accion, datos_nuevos, usuario_id, ip_address, user_agent)
-      VALUES ('access_log', ?, 'ACCESS', JSON_OBJECT('action', ?, 'resource', ?), ?, ?, ?)
+      VALUES ('access_log', ?, 'INSERT', JSON_OBJECT('action', ?, 'resource', ?), ?, ?, ?)
     `
     await db.query(query, [userId, action, resource, userId, ip, userAgent])
   } catch (error) {
-    console.error("Error logging access:", error)
+    console.error("Error logging access:", error.message)
   }
 }
 
