@@ -4,20 +4,26 @@ const db = require("../config/database")
 // Obtener todos los usuarios (solo admin)
 const getUsers = async (req, res) => {
   try {
+    // Parseo y validación estricta de los parámetros de paginación
     const page = Math.max(1, parseInt(req.query.page, 10) || 1)
-    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 10))
-    const search = req.query.search || ""
-    const rol = req.query.rol || ""
+    let limit = parseInt(req.query.limit, 10)
+    if (!Number.isInteger(limit) || limit <= 0) {
+      limit = 10
+    }
+    limit = Math.max(1, Math.min(100, limit)) // entre 1 y 100
     const offset = (page - 1) * limit
 
-    // Forzar a que sean enteros antes de pasarlos a MySQL
+    // Forzar tipos seguros
     const limitInt = Number(limit)
-    const offsetInt = Number(offset)
+    const offsetInt = Number(offset >= 0 ? offset : 0)
+
+    const search = (req.query.search || "").toString().trim()
+    const rol = (req.query.rol || "").toString().trim()
 
     let whereClause = "WHERE 1=1"
     const params = []
 
-    // Filtro por búsqueda
+    // Filtro por búsqueda (nombre o email)
     if (search) {
       whereClause += " AND (nombre LIKE ? OR email LIKE ?)"
       params.push(`%${search}%`, `%${search}%`)
@@ -29,22 +35,26 @@ const getUsers = async (req, res) => {
       params.push(rol)
     }
 
-    // Obtener usuarios con paginación
-    const [users] = await db.pool.execute(
-      `SELECT id, nombre, email, rol, activo, creado_en, ultimo_login 
-       FROM usuarios ${whereClause} 
-       ORDER BY creado_en DESC 
-       LIMIT ? OFFSET ?`,
-      [...params, limitInt, offsetInt],
-    )
+    // Construyo la consulta inyectando limit/offset validados (enteros controlados)
+    const usersSql = `
+      SELECT id, nombre, email, rol, activo, creado_en, ultimo_login
+      FROM usuarios
+      ${whereClause}
+      ORDER BY creado_en DESC
+      LIMIT ${limitInt} OFFSET ${offsetInt}
+    `
 
-    // Obtener total de registros
-    const [totalResult] = await db.pool.execute(`SELECT COUNT(*) as total FROM usuarios ${whereClause}`, params)
+    // Ejecutar consulta de usuarios (params solo para los filtros)
+    const [users] = await db.pool.execute(usersSql, params)
 
-    const total = totalResult[0].total
-    const totalPages = Math.ceil(total / limitInt)
+    // Consulta para total de registros (usa los mismos params de filtro)
+    const countSql = `SELECT COUNT(*) as total FROM usuarios ${whereClause}`
+    const [totalResult] = await db.pool.execute(countSql, params)
 
-    res.json({
+    const total = totalResult && totalResult[0] ? Number(totalResult[0].total) : 0
+    const totalPages = limitInt > 0 ? Math.ceil(total / limitInt) : 0
+
+    return res.json({
       success: true,
       data: {
         users,
@@ -57,8 +67,15 @@ const getUsers = async (req, res) => {
       },
     })
   } catch (error) {
-    console.error("Error al obtener usuarios:", error)
-    res.status(500).json({
+    // Logueo más informativo en development, y mínimo en producción
+    if (process.env.NODE_ENV === "development") {
+      console.error("Error al obtener usuarios:", error)
+    } else {
+      console.error("Error al obtener usuarios:", error.message)
+    }
+
+    // Responder con error genérico al cliente
+    return res.status(500).json({
       success: false,
       message: "Error interno del servidor",
     })
@@ -94,7 +111,7 @@ const createUser = async (req, res) => {
 
     // Crear usuario
     const [result] = await db.pool.execute(
-      `INSERT INTO usuarios (nombre, email, password, rol, activo, creado_en) 
+      `INSERT INTO usuarios (nombre, email, password, rol, activo, creado_en)
        VALUES (?, ?, ?, ?, 1, NOW())`,
       [nombre, email, hashedPassword, rol],
     )
@@ -105,14 +122,14 @@ const createUser = async (req, res) => {
       [result.insertId],
     )
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: "Usuario creado exitosamente",
       data: newUser[0],
     })
   } catch (error) {
     console.error("Error al crear usuario:", error)
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Error interno del servidor",
     })
@@ -153,12 +170,15 @@ const updateUser = async (req, res) => {
       })
     }
 
+    // Normalizar activo a 0/1
+    const activoValue = activo === undefined ? 1 : activo ? 1 : 0
+
     // Actualizar usuario
     await db.pool.execute(
-      `UPDATE usuarios 
-       SET nombre = ?, email = ?, rol = ?, activo = ?, actualizado_en = NOW() 
+      `UPDATE usuarios
+       SET nombre = ?, email = ?, rol = ?, activo = ?, actualizado_en = NOW()
        WHERE id = ?`,
-      [nombre, email, rol, activo !== undefined ? activo : 1, id],
+      [nombre, email, rol, activoValue, id],
     )
 
     // Obtener el usuario actualizado
@@ -167,14 +187,14 @@ const updateUser = async (req, res) => {
       [id],
     )
 
-    res.json({
+    return res.json({
       success: true,
       message: "Usuario actualizado exitosamente",
       data: updatedUser[0],
     })
   } catch (error) {
     console.error("Error al actualizar usuario:", error)
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Error interno del servidor",
     })
@@ -187,7 +207,7 @@ const deleteUser = async (req, res) => {
     const { id } = req.params
 
     // No permitir eliminar al usuario actual
-    if (Number.parseInt(id) === req.user.id) {
+    if (Number.parseInt(id, 10) === req.user.id) {
       return res.status(400).json({
         success: false,
         message: "No puedes eliminar tu propio usuario",
@@ -207,13 +227,13 @@ const deleteUser = async (req, res) => {
     // Soft delete - marcar como inactivo
     await db.pool.execute("UPDATE usuarios SET activo = 0, actualizado_en = NOW() WHERE id = ?", [id])
 
-    res.json({
+    return res.json({
       success: true,
       message: "Usuario eliminado exitosamente",
     })
   } catch (error) {
     console.error("Error al eliminar usuario:", error)
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: "Error interno del servidor",
     })
