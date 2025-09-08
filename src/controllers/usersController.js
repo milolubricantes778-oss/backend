@@ -4,7 +4,10 @@ const db = require("../config/database")
 // Obtener todos los usuarios (solo admin)
 const getUsers = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", rol = "" } = req.query
+    const page = Math.max(1, Number.parseInt(req.query.page) || 1)
+    const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit) || 10))
+    const search = req.query.search || ""
+    const rol = req.query.rol || ""
     const offset = (page - 1) * limit
 
     let whereClause = "WHERE 1=1"
@@ -28,7 +31,7 @@ const getUsers = async (req, res) => {
        FROM usuarios ${whereClause} 
        ORDER BY creado_en DESC 
        LIMIT ? OFFSET ?`,
-      [...params, Number.parseInt(limit), Number.parseInt(offset)],
+      [...params, limit, offset],
     )
 
     // Obtener total de registros
@@ -42,10 +45,10 @@ const getUsers = async (req, res) => {
       data: {
         users,
         pagination: {
-          currentPage: Number.parseInt(page),
+          currentPage: page,
           totalPages,
           totalItems: total,
-          itemsPerPage: Number.parseInt(limit),
+          itemsPerPage: limit,
         },
       },
     })
@@ -215,7 +218,7 @@ const deleteUser = async (req, res) => {
 
 module.exports = {
   getUsers,
-  createUser,  
+  createUser,
   updateUser,
   deleteUser,
 }
