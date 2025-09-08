@@ -5,13 +5,15 @@ const corsOptions = {
   origin: (origin, callback) => {
     // Lista de orígenes permitidos
     const allowedOrigins = [
-      "http://localhost:3000",
+      process.env.FRONTEND_URL || "http://localhost:3000",
       "http://localhost:3000",
       "http://localhost:3001",
       "http://localhost:5173",
-      "https://milolubricantes.site",
-      "https://www.milolubricantes.site",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
       "http://127.0.0.1:5173",
+      "https://www.milolubricantes.site",
+      "https://milolubricantes.site",
     ]
 
     // Permitir requests sin origin (mobile apps, Postman, etc.)
