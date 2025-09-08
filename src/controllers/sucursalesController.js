@@ -6,11 +6,19 @@ const sucursalesController = {
   // Obtener todas las sucursales con paginación y filtros
   async getSucursales(req, res) {
     try {
-      const { page = 1, limit = 10, search = "", activo } = req.query
+      let page = parseInt(req.query.page, 10) || 1
+      let limit = parseInt(req.query.limit, 10) || 10
+      const search = req.query.search || ""
+      const activo = req.query.activo
+
+      // Normalizar valores
+      page = page < 1 ? 1 : page
+      limit = limit < 1 ? 10 : limit
+      limit = Math.min(limit, 100) // máximo 100
       const offset = (page - 1) * limit
 
-      let whereClause = "WHERE 1=1"
       const queryParams = []
+      let whereClause = "WHERE 1=1"
 
       if (search) {
         whereClause += " AND (s.nombre LIKE ? OR s.ubicacion LIKE ?)"
@@ -18,12 +26,12 @@ const sucursalesController = {
         queryParams.push(searchTerm, searchTerm)
       }
 
-      // Filtro por estado activo
       if (activo !== undefined) {
         whereClause += " AND s.activo = ?"
         queryParams.push(activo === "true" ? 1 : 0)
       }
 
+      // Inyectar limit y offset directamente (enteros validados)
       const sucursalesQuery = `
         SELECT 
           s.id,
@@ -40,23 +48,19 @@ const sucursalesController = {
         ${whereClause}
         GROUP BY s.id
         ORDER BY s.nombre ASC
-        LIMIT ? OFFSET ?
+        LIMIT ${limit} OFFSET ${offset}
       `
 
-      // Consulta para contar total
       const countQuery = `
         SELECT COUNT(*) as total
         FROM sucursales s
         ${whereClause}
       `
 
-      const [sucursales] = await db.pool.execute(sucursalesQuery, [
-        ...queryParams,
-        Number.parseInt(limit),
-        Number.parseInt(offset),
-      ])
+      const [sucursales] = await db.pool.execute(sucursalesQuery, queryParams)
       const [countResult] = await db.pool.execute(countQuery, queryParams)
-      const total = countResult[0].total
+
+      const total = countResult[0]?.total || 0
       const totalPages = Math.ceil(total / limit)
 
       res.json({
@@ -64,10 +68,10 @@ const sucursalesController = {
         data: {
           sucursales,
           pagination: {
-            currentPage: Number.parseInt(page),
+            currentPage: page,
             totalPages,
             totalItems: total,
-            itemsPerPage: Number.parseInt(limit),
+            itemsPerPage: limit,
           },
         },
       })
@@ -122,7 +126,6 @@ const sucursalesController = {
 
       const { nombre, ubicacion } = req.body
 
-      // Verificar si ya existe una sucursal con el mismo nombre
       const [existingSucursal] = await db.pool.execute("SELECT id FROM sucursales WHERE nombre = ? AND activo = 1", [
         nombre,
       ])
@@ -166,14 +169,12 @@ const sucursalesController = {
       const { id } = req.params
       const { nombre, ubicacion, activo } = req.body
 
-      // Verificar si la sucursal existe
       const [existingSucursal] = await db.pool.execute("SELECT id FROM sucursales WHERE id = ?", [id])
 
       if (existingSucursal.length === 0) {
         return res.status(404).json(responseHelper.error("Sucursal no encontrada"))
       }
 
-      // Verificar si ya existe otra sucursal con el mismo nombre
       const [nameCheck] = await db.pool.execute(
         "SELECT id FROM sucursales WHERE nombre = ? AND id != ? AND activo = 1",
         [nombre, id],
@@ -212,14 +213,12 @@ const sucursalesController = {
     try {
       const { id } = req.params
 
-      // Verificar si la sucursal existe
       const [existingSucursal] = await db.pool.execute("SELECT id FROM sucursales WHERE id = ? AND activo = 1", [id])
 
       if (existingSucursal.length === 0) {
         return res.status(404).json(responseHelper.error("Sucursal no encontrada"))
       }
 
-      // Verificar si la sucursal tiene servicios asociados
       const [serviciosAsociados] = await db.pool.execute(
         "SELECT COUNT(*) as count FROM servicios WHERE sucursal_id = ? AND activo = 1",
         [id],
@@ -242,7 +241,6 @@ const sucursalesController = {
           .json(responseHelper.error("No se puede eliminar la sucursal porque tiene empleados asociados"))
       }
 
-      // Soft delete
       await db.pool.execute("UPDATE sucursales SET activo = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id])
 
       responseHelper.success(res, null, "Sucursal eliminada exitosamente")
