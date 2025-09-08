@@ -4,11 +4,15 @@ const db = require("../config/database")
 // Obtener todos los usuarios (solo admin)
 const getUsers = async (req, res) => {
   try {
-    const page = Math.max(1, Number.parseInt(req.query.page) || 1)
-    const limit = Math.max(1, Math.min(100, Number.parseInt(req.query.limit) || 10))
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1)
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit, 10) || 10))
     const search = req.query.search || ""
     const rol = req.query.rol || ""
     const offset = (page - 1) * limit
+
+    // Forzar a que sean enteros antes de pasarlos a MySQL
+    const limitInt = Number(limit)
+    const offsetInt = Number(offset)
 
     let whereClause = "WHERE 1=1"
     const params = []
@@ -25,19 +29,20 @@ const getUsers = async (req, res) => {
       params.push(rol)
     }
 
-    const [users] = await db.pool.query(
+    // Obtener usuarios con paginación
+    const [users] = await db.pool.execute(
       `SELECT id, nombre, email, rol, activo, creado_en, ultimo_login 
        FROM usuarios ${whereClause} 
        ORDER BY creado_en DESC 
-       LIMIT ${limitInt} OFFSET ${offsetInt}`,
-      params
+       LIMIT ? OFFSET ?`,
+      [...params, limitInt, offsetInt],
     )
 
     // Obtener total de registros
     const [totalResult] = await db.pool.execute(`SELECT COUNT(*) as total FROM usuarios ${whereClause}`, params)
 
     const total = totalResult[0].total
-    const totalPages = Math.ceil(total / limit)
+    const totalPages = Math.ceil(total / limitInt)
 
     res.json({
       success: true,
@@ -47,7 +52,7 @@ const getUsers = async (req, res) => {
           currentPage: page,
           totalPages,
           totalItems: total,
-          itemsPerPage: limit,
+          itemsPerPage: limitInt,
         },
       },
     })
