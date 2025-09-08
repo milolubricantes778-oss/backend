@@ -24,7 +24,9 @@ const app = express()
 const PORT = process.env.PORT || 4485
 let server // Declare the server variable here
 
-app.use(corsMiddleware)
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", true)
+}
 
 app.use(
   helmet({
@@ -81,6 +83,8 @@ app.use(
     "Demasiados intentos de login, intenta de nuevo en 15 minutos.",
   ),
 )
+
+app.use(corsMiddleware)
 
 if (process.env.NODE_ENV === "development") {
   app.use(requestLogger)
