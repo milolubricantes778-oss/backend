@@ -143,7 +143,7 @@ const serviciosController = {
     try {
       await connection.beginTransaction()
 
-      const { cliente_id, vehiculo_id, sucursal_id, empleados, observaciones, items, precio_referencia } = req.body
+      const { cliente_id, vehiculo_id, sucursal_id, empleados, descripcion, observaciones, items, precio_referencia } = req.body
 
       if (!cliente_id) {
         return res.status(400).json({ error: "Cliente ID es requerido" })
@@ -173,11 +173,11 @@ const serviciosController = {
 
       const [result] = await connection.execute(
         `
-        INSERT INTO servicios (numero, cliente_id, vehiculo_id, sucursal_id, observaciones, 
+        INSERT INTO servicios (numero, cliente_id, vehiculo_id, sucursal_id, descripcion, observaciones, 
                               precio_referencia, activo) 
         VALUES (?, ?, ?, ?, ?, ?, true)
       `,
-        [numero, cliente_id, vehiculo_id, sucursal_id, observaciones || null, precio_referencia || 0],
+        [numero, cliente_id, vehiculo_id, sucursal_id, descripcion || null, observaciones || null, precio_referencia || 0],
       )
 
       const servicioId = result.insertId
@@ -246,7 +246,7 @@ const serviciosController = {
       await connection.beginTransaction()
 
       const { id } = req.params
-      const { cliente_id, vehiculo_id, sucursal_id, empleados, observaciones, items, precio_referencia } = req.body
+      const { cliente_id, vehiculo_id, sucursal_id, empleados, descripcion, observaciones, items, precio_referencia } = req.body
 
       const [existingServicio] = await connection.execute("SELECT id FROM servicios WHERE id = ? AND activo = true", [
         id,
@@ -268,10 +268,10 @@ const serviciosController = {
       await connection.execute(
         `
         UPDATE servicios 
-        SET cliente_id = ?, vehiculo_id = ?, sucursal_id = ?, observaciones = ?, precio_referencia = ?
+        SET cliente_id = ?, vehiculo_id = ?, sucursal_id = ?, descripcion = ?, observaciones = ?, precio_referencia = ?
         WHERE id = ?
       `,
-        [cliente_id, vehiculo_id, sucursal_id, observaciones || null, precio_referencia || 0, id],
+        [cliente_id, vehiculo_id, sucursal_id, descripcion || null, observaciones || null, precio_referencia || 0, id],
       )
 
       if (empleados && Array.isArray(empleados) && empleados.length > 0) {
