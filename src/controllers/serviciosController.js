@@ -5,7 +5,9 @@ const serviciosController = {
   getServicios: async (req, res) => {
     try {
       const { page = 1, limit = 10, search = "", clienteId = "", vehiculoId = "" } = req.query
-      const offset = (page - 1) * limit
+      const pageNum = Number.parseInt(page) || 1
+      const limitNum = Math.min(Number.parseInt(limit) || 10, 100) // máximo 100 por seguridad
+      const offset = (pageNum - 1) * limitNum
 
       let query = `
         SELECT s.*, c.nombre as cliente_nombre, c.apellido as cliente_apellido, c.dni as cliente_dni,
@@ -49,8 +51,8 @@ const serviciosController = {
         countParams.push(vehiculoId)
       }
 
-      query += " GROUP BY s.id ORDER BY s.created_at DESC LIMIT ? OFFSET ?"
-      queryParams.push(Number.parseInt(limit), Number.parseInt(offset))
+      // Inyectar LIMIT y OFFSET directamente
+      query += ` GROUP BY s.id ORDER BY s.created_at DESC LIMIT ${limitNum} OFFSET ${offset}`
 
       const [servicios] = await db.pool.execute(query, queryParams)
       const [countResult] = await db.pool.execute(countQuery, countParams)
@@ -59,8 +61,8 @@ const serviciosController = {
       res.json({
         data: servicios,
         total,
-        totalPages: Math.ceil(total / limit),
-        currentPage: Number.parseInt(page),
+        totalPages: Math.ceil(total / limitNum),
+        currentPage: pageNum,
       })
     } catch (error) {
       console.error("Error al obtener servicios:", error)
