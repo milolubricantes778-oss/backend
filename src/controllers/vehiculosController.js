@@ -4,8 +4,13 @@ const vehiculosController = {
   // Obtener todos los vehículos con paginación y filtros
   getVehiculos: async (req, res) => {
     try {
-      const { page = 1, limit = 10, search = "", searchCriteria = "patente", clienteId = "" } = req.query
+      let { page = 1, limit = 10, search = "", searchCriteria = "patente", clienteId = "" } = req.query
 
+      page = parseInt(page, 10) || 1
+      limit = parseInt(limit, 10) || 10
+      page = page < 1 ? 1 : page
+      limit = limit < 1 ? 10 : limit
+      limit = Math.min(limit, 100)
       const offset = (page - 1) * limit
 
       let query = `SELECT v.id, v.patente, v.marca, v.modelo, v.año, 
@@ -62,7 +67,6 @@ const vehiculosController = {
             countParams.push(searchParam, searchParam, searchParam)
             break
           default:
-            // Fallback to search all fields if criteria is not recognized
             searchCondition =
               " AND (v.patente LIKE ? OR v.marca LIKE ? OR v.modelo LIKE ? OR CONCAT(c.nombre, ' ', c.apellido) LIKE ?)"
             queryParams.push(searchParam, searchParam, searchParam, searchParam)
@@ -73,10 +77,13 @@ const vehiculosController = {
         countQuery += searchCondition
       }
 
-      query +=
-        " GROUP BY v.id, v.patente, v.marca, v.modelo, v.año, v.kilometraje, v.observaciones, v.cliente_id, v.activo, v.created_at, v.updated_at, c.nombre, c.apellido, c.dni, c.telefono, c.direccion"
-      query += " ORDER BY v.created_at DESC LIMIT ? OFFSET ?"
-      queryParams.push(Number.parseInt(limit), Number.parseInt(offset))
+      query += `
+        GROUP BY v.id, v.patente, v.marca, v.modelo, v.año, v.kilometraje, v.observaciones, 
+                 v.cliente_id, v.activo, v.created_at, v.updated_at, 
+                 c.nombre, c.apellido, c.dni, c.telefono, c.direccion
+        ORDER BY v.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `
 
       const [vehiculos] = await db.pool.execute(query, queryParams)
       const [countResult] = await db.pool.execute(countQuery, countParams)
@@ -102,7 +109,6 @@ const vehiculosController = {
           }
         }
 
-        // Remove the raw servicios_data and add processed servicios array
         const { servicios_data, ...vehiculoData } = vehiculo
         return {
           ...vehiculoData,
@@ -114,7 +120,7 @@ const vehiculosController = {
         data: processedVehiculos,
         total,
         totalPages: Math.ceil(total / limit),
-        currentPage: Number.parseInt(page),
+        currentPage: page,
       }
 
       res.json(response)
@@ -152,13 +158,11 @@ const vehiculosController = {
     try {
       const { clienteId, patente, marca, modelo, año, kilometraje, observaciones } = req.body
 
-      // Verificar si el cliente existe
       const [cliente] = await db.pool.execute("SELECT id FROM clientes WHERE id = ? AND activo = true", [clienteId])
       if (cliente.length === 0) {
         return res.status(400).json({ error: "Cliente no encontrado" })
       }
 
-      // Verificar si ya existe un vehículo con la misma patente
       const [existingVehiculo] = await db.pool.execute("SELECT id FROM vehiculos WHERE patente = ? AND activo = true", [
         patente,
       ])
@@ -194,19 +198,16 @@ const vehiculosController = {
       const { id } = req.params
       const { clienteId, patente, marca, modelo, año, kilometraje, observaciones } = req.body
 
-      // Verificar si el vehículo existe
       const [existingVehiculo] = await db.pool.execute("SELECT id FROM vehiculos WHERE id = ? AND activo = true", [id])
       if (existingVehiculo.length === 0) {
         return res.status(404).json({ error: "Vehículo no encontrado" })
       }
 
-      // Verificar si el cliente existe
       const [cliente] = await db.pool.execute("SELECT id FROM clientes WHERE id = ? AND activo = true", [clienteId])
       if (cliente.length === 0) {
         return res.status(400).json({ error: "Cliente no encontrado" })
       }
 
-      // Verificar si ya existe otro vehículo con la misma patente
       const [duplicateVehiculo] = await db.pool.execute(
         "SELECT id FROM vehiculos WHERE patente = ? AND id != ? AND activo = true",
         [patente, id],
@@ -243,13 +244,11 @@ const vehiculosController = {
     try {
       const { id } = req.params
 
-      // Verificar si el vehículo existe
       const [existingVehiculo] = await db.pool.execute("SELECT id FROM vehiculos WHERE id = ? AND activo = true", [id])
       if (existingVehiculo.length === 0) {
         return res.status(404).json({ error: "Vehículo no encontrado" })
       }
 
-      // Verificar si el vehículo tiene servicios pendientes
       const [servicios] = await db.pool.execute(
         "SELECT id FROM servicios WHERE vehiculo_id = ? AND estado IN ('PENDIENTE', 'EN_PROGRESO')",
         [id],
@@ -273,13 +272,10 @@ const vehiculosController = {
   getVehiculosByCliente: async (req, res) => {
     try {
       const { clienteId } = req.params
-
-      // Validar que clienteId sea un número válido
       const clienteIdNum = Number.parseInt(clienteId, 10)
       if (isNaN(clienteIdNum) || clienteIdNum <= 0) {
         return res.status(400).json({ error: "ID de cliente inválido" })
       }
-
 
       const [vehiculos] = await db.pool.execute(
         `SELECT v.*, CONCAT(c.nombre, ' ', c.apellido) as cliente_nombre
@@ -303,7 +299,6 @@ const vehiculosController = {
       const { id } = req.params
       const { kilometraje } = req.body
 
-      // Verificar si el vehículo existe
       const [existingVehiculo] = await db.pool.execute(
         "SELECT kilometraje FROM vehiculos WHERE id = ? AND activo = true",
         [id],
