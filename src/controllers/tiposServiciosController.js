@@ -5,7 +5,14 @@ const tiposServiciosController = {
   // Obtener todos los tipos de servicios
   getTiposServicios: async (req, res) => {
     try {
-      const { page = 1, limit = 50, search = "" } = req.query
+      let page = parseInt(req.query.page, 10) || 1
+      let limit = parseInt(req.query.limit, 10) || 50
+      const search = req.query.search || ""
+
+      // Normalizar valores
+      page = page < 1 ? 1 : page
+      limit = limit < 1 ? 50 : limit
+      limit = Math.min(limit, 100) // máximo 100
       const offset = (page - 1) * limit
 
       let query = `SELECT * FROM tipos_servicios WHERE activo = true`
@@ -22,8 +29,8 @@ const tiposServiciosController = {
         countParams.push(searchParam, searchParam)
       }
 
-      query += " ORDER BY nombre ASC LIMIT ? OFFSET ?"
-      queryParams.push(Number.parseInt(limit), Number.parseInt(offset))
+      // Inyectar LIMIT/OFFSET validados directamente
+      query += ` ORDER BY nombre ASC LIMIT ${limit} OFFSET ${offset}`
 
       const [tiposServicios] = await db.pool.execute(query, queryParams)
       const [countResult] = await db.pool.execute(countQuery, countParams)
@@ -69,11 +76,9 @@ const tiposServiciosController = {
         return ResponseHelper.validationError(res, "El nombre es requerido")
       }
 
-      // Verificar si ya existe un tipo de servicio con el mismo nombre
       const [existing] = await db.pool.execute("SELECT id FROM tipos_servicios WHERE nombre = ? AND activo = true", [
         nombre,
       ])
-
 
       if (existing.length > 0) {
         return ResponseHelper.conflict(res, "Ya existe un tipo de servicio con ese nombre")
@@ -88,7 +93,6 @@ const tiposServiciosController = {
 
       return ResponseHelper.created(res, newTipoServicio[0], "Tipo de servicio creado exitosamente")
     } catch (error) {
-      console.error("[v0] Error en createTipoServicio:", error)
       console.error("Error al crear tipo de servicio:", error)
       return ResponseHelper.error(res, "Error al crear tipo de servicio", 500)
     }
@@ -100,13 +104,11 @@ const tiposServiciosController = {
       const { id } = req.params
       const { nombre, descripcion } = req.body
 
-      // Verificar si el tipo de servicio existe
       const [existing] = await db.pool.execute("SELECT id FROM tipos_servicios WHERE id = ? AND activo = true", [id])
       if (existing.length === 0) {
         return ResponseHelper.notFound(res, "Tipo de servicio no encontrado")
       }
 
-      // Verificar si ya existe otro tipo de servicio con el mismo nombre
       const [duplicate] = await db.pool.execute(
         "SELECT id FROM tipos_servicios WHERE nombre = ? AND id != ? AND activo = true",
         [nombre, id],
@@ -135,13 +137,11 @@ const tiposServiciosController = {
     try {
       const { id } = req.params
 
-      // Verificar si el tipo de servicio existe
       const [existing] = await db.pool.execute("SELECT id FROM tipos_servicios WHERE id = ? AND activo = true", [id])
       if (existing.length === 0) {
         return ResponseHelper.notFound(res, "Tipo de servicio no encontrado")
       }
 
-      // Verificar si el tipo de servicio está siendo usado en servicios
       const [serviciosUsando] = await db.pool.execute(
         "SELECT COUNT(*) as count FROM servicio_items WHERE tipo_servicio_id = ?",
         [id],
