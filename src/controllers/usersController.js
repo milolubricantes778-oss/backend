@@ -25,13 +25,12 @@ const getUsers = async (req, res) => {
       params.push(rol)
     }
 
-    // Obtener usuarios con paginación
-    const [users] = await db.pool.execute(
+    const [users] = await db.pool.query(
       `SELECT id, nombre, email, rol, activo, creado_en, ultimo_login 
        FROM usuarios ${whereClause} 
        ORDER BY creado_en DESC 
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset],
+       LIMIT ${limitInt} OFFSET ${offsetInt}`,
+      params
     )
 
     // Obtener total de registros
