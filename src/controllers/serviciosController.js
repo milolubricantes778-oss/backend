@@ -175,7 +175,7 @@ const serviciosController = {
         `
         INSERT INTO servicios (numero, cliente_id, vehiculo_id, sucursal_id, descripcion, observaciones, 
                               precio_referencia, activo) 
-        VALUES (?, ?, ?, ?, ?, ?, true)
+        VALUES (?, ?, ?, ?, ?, ?, ?, true)
       `,
         [numero, cliente_id, vehiculo_id, sucursal_id, descripcion || null, observaciones || null, precio_referencia || 0],
       )
@@ -195,7 +195,7 @@ const serviciosController = {
       for (const item of items) {
         const [itemResult] = await connection.execute(
           `INSERT INTO servicio_items (servicio_id, tipo_servicio_id, descripcion, observaciones, notas)
-           VALUES (?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?)`,
           [servicioId, item.tipo_servicio_id, item.descripcion || "Sin descripción", item.observaciones || null, item.notas || null],
         )
 
@@ -288,7 +288,7 @@ const serviciosController = {
         const [itemResult] = await connection.execute(
           `
           INSERT INTO servicio_items (servicio_id, tipo_servicio_id, descripcion, observaciones, notas)
-          VALUES (?, ?, ?, ?)
+          VALUES (?, ?, ?, ?,  ?)
         `,
           [id, item.tipo_servicio_id, item.descripcion || "Sin descripción", item.observaciones || null, item.notas || null],
         )
