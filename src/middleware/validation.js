@@ -322,10 +322,6 @@ const validateEmpleado = [
     .withMessage("El apellido debe tener entre 2 y 100 caracteres")
     .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/)
     .withMessage("El apellido solo puede contener letras y espacios"),
-  body("telefono")
-    .optional()
-    .matches(/^(\+54\s?)?(\d{2,4}\s?)?\d{6,8}$/)
-    .withMessage("Formato de teléfono argentino inválido (ej: +54 11 1234-5678)"),
   body("cargo").optional().isLength({ max: 100 }).withMessage("El cargo no puede tener más de 100 caracteres"),
   body("sucursal_id").isInt({ min: 1 }).withMessage("ID de sucursal inválido"),
   handleValidationErrors,
