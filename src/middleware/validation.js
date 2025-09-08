@@ -64,22 +64,6 @@ const validateCliente = [
     .withMessage("El apellido debe tener entre 2 y 100 caracteres")
     .matches(/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/)
     .withMessage("El apellido solo puede contener letras y espacios"),
-  body("dni")
-    .optional()
-    .isLength({ min: 7, max: 8 })
-    .withMessage("DNI debe tener 7 u 8 dígitos")
-    .isNumeric()
-    .withMessage("DNI debe contener solo números")
-    .custom((value) => {
-      if (value && (value.length < 7 || value.length > 8)) {
-        throw new Error("DNI debe tener 7 u 8 dígitos")
-      }
-      return true
-    }),
-  body("direccion")
-    .optional()
-    .isLength({ min: 5, max: 255 })
-    .withMessage("La dirección debe tener entre 5 y 255 caracteres"),
   handleValidationErrors,
 ]
 
