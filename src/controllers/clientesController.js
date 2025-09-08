@@ -5,7 +5,13 @@ const clientesController = {
   // Obtener todos los clientes con paginación y filtros
   getClientes: async (req, res) => {
     try {
-      const { page = 1, limit = 10, search = "", searchBy = "" } = req.query
+      let { page = 1, limit = 10, search = "", searchBy = "" } = req.query
+
+      page = parseInt(page, 10) || 1
+      limit = parseInt(limit, 10) || 10
+      page = page < 1 ? 1 : page
+      limit = limit < 1 ? 10 : limit
+      limit = Math.min(limit, 100)
       const offset = (page - 1) * limit
 
       let query = `
@@ -39,7 +45,6 @@ const clientesController = {
 
         switch (searchBy) {
           case "nombre":
-            // Search in both nombre and full name (nombre + apellido)
             searchCondition = " AND (c.nombre LIKE ? OR CONCAT(c.nombre, ' ', c.apellido) LIKE ?)"
             queryParams.push(searchParam, searchParam)
             countParams.push(searchParam, searchParam)
@@ -60,7 +65,6 @@ const clientesController = {
             countParams.push(searchParam)
             break
           default:
-            // Default: search in all fields including full name
             searchCondition =
               " AND (c.nombre LIKE ? OR c.apellido LIKE ? OR c.dni LIKE ? OR c.telefono LIKE ? OR CONCAT(c.nombre, ' ', c.apellido) LIKE ?)"
             queryParams.push(searchParam, searchParam, searchParam, searchParam, searchParam)
@@ -71,8 +75,8 @@ const clientesController = {
         countQuery += searchCondition
       }
 
-      query += " GROUP BY c.id ORDER BY c.nombre ASC, c.apellido ASC LIMIT ? OFFSET ?"
-      queryParams.push(Number.parseInt(limit), Number.parseInt(offset))
+      // Inyectar LIMIT/OFFSET validados directamente
+      query += ` GROUP BY c.id ORDER BY c.nombre ASC, c.apellido ASC LIMIT ${limit} OFFSET ${offset}`
 
       const [clientesRaw] = await db.pool.execute(query, queryParams)
       const [countResult] = await db.pool.execute(countQuery, countParams)
@@ -135,8 +139,8 @@ const clientesController = {
         pagination: {
           total,
           totalPages: Math.ceil(total / limit),
-          currentPage: Number.parseInt(page),
-          limit: Number.parseInt(limit),
+          currentPage: page,
+          limit,
         },
       })
     } catch (error) {
@@ -167,11 +171,8 @@ const clientesController = {
     try {
       const { nombre, apellido, dni, telefono, direccion } = req.body
 
-      // Verificar si ya existe un cliente con el mismo DNI
       if (dni) {
-        const [existingCliente] = await db.pool.execute("SELECT id FROM clientes WHERE dni = ? AND activo = true", [
-          dni,
-        ])
+        const [existingCliente] = await db.pool.execute("SELECT id FROM clientes WHERE dni = ? AND activo = true", [dni])
         if (existingCliente.length > 0) {
           return ResponseHelper.error(res, "Ya existe un cliente con ese DNI", 400, "DUPLICATE_DNI")
         }
@@ -198,13 +199,11 @@ const clientesController = {
       const { id } = req.params
       const { nombre, apellido, dni, telefono, direccion } = req.body
 
-      // Verificar si el cliente existe
       const [existingCliente] = await db.pool.execute("SELECT id FROM clientes WHERE id = ? AND activo = true", [id])
       if (existingCliente.length === 0) {
         return ResponseHelper.notFound(res, "Cliente no encontrado", "CLIENT_NOT_FOUND")
       }
 
-      // Verificar si ya existe otro cliente con el mismo DNI
       if (dni) {
         const [duplicateCliente] = await db.pool.execute(
           "SELECT id FROM clientes WHERE dni = ? AND id != ? AND activo = true",
@@ -236,26 +235,21 @@ const clientesController = {
     try {
       const { id } = req.params
 
-      // Verificar si el cliente existe
       const [existingCliente] = await db.pool.execute("SELECT id FROM clientes WHERE id = ? AND activo = true", [id])
       if (existingCliente.length === 0) {
         return ResponseHelper.notFound(res, "Cliente no encontrado", "CLIENT_NOT_FOUND")
       }
 
-      // Verificar si el cliente tiene vehículos activos
       const [vehiculos] = await db.pool.execute("SELECT id FROM vehiculos WHERE cliente_id = ? AND activo = true", [id])
-
       if (vehiculos.length > 0) {
-        const errorResponse = ResponseHelper.error(
+        return ResponseHelper.error(
           res,
           "No se puede eliminar el cliente porque tiene vehículos asociados",
           400,
           "VEHICLES_ASSOCIATED",
         )
-        return errorResponse
       }
 
-      // Verificar si el cliente tiene servicios pendientes
       const [servicios] = await db.pool.execute(
         "SELECT id FROM servicios WHERE cliente_id = ? AND estado IN ('PENDIENTE', 'EN_PROGRESO')",
         [id],
@@ -273,11 +267,10 @@ const clientesController = {
 
       return ResponseHelper.success(res, { message: "Cliente eliminado correctamente" })
     } catch (error) {
-      console.error("[v0] Error al eliminar cliente:", error)
+      console.error("Error al eliminar cliente:", error)
       return ResponseHelper.error(res, "Error al eliminar cliente", 500, "DATABASE_ERROR", error)
     }
   },
 }
 
 module.exports = clientesController
- 
